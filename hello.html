@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello</title>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    .scene {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .hello-wrapper {
+      position: relative;
+      opacity: 0;
+      animation: appear 2s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;
+    }
+
+    @keyframes appear {
+      0%   { opacity: 0; transform: scale(0.85); filter: blur(24px); }
+      100% { opacity: 1; transform: scale(1);    filter: blur(0px);  }
+    }
+
+    svg {
+      display: block;
+      overflow: visible;
+      filter:
+        drop-shadow(0 0 25px rgba(120, 190, 255, 0.45))
+        drop-shadow(0 0 70px rgba(80,  150, 255, 0.20));
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── 배경 캔버스 ── -->
+<canvas id="bg"></canvas>
+
+<!-- ── Hello SVG ── -->
+<div class="scene">
+  <div class="hello-wrapper">
+    <svg id="helloSvg" width="820" height="320" viewBox="0 0 820 320">
+      <defs>
+
+        <!-- 1) Liquid-glass displacement filter (animated turbulence) -->
+        <filter id="liquidGlass" x="-12%" y="-20%" width="124%" height="140%"
+                color-interpolation-filters="sRGB">
+
+          <feTurbulence id="turb"
+            type="fractalNoise"
+            baseFrequency="0.013 0.020"
+            numOctaves="4" seed="7"
+            result="noise">
+            <animate attributeName="baseFrequency"
+              values="0.013 0.020; 0.017 0.026; 0.011 0.017; 0.013 0.020"
+              dur="12s" repeatCount="indefinite"/>
+            <animate attributeName="seed"
+              values="7;11;3;7" dur="24s" repeatCount="indefinite"/>
+          </feTurbulence>
+
+          <!-- noise → greyscale for displacement -->
+          <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
+
+          <!-- displacement: liquid warp -->
+          <feDisplacementMap in="SourceGraphic" in2="grayNoise"
+            scale="14" xChannelSelector="R" yChannelSelector="G"
+            result="warped"/>
+
+          <!-- soft edge blur -->
+          <feGaussianBlur in="warped" stdDeviation="0.7" result="blurred"/>
+
+          <!-- lift brightness slightly (glass transmits extra light) -->
+          <feComponentTransfer result="final">
+            <feFuncR type="linear" slope="1.15" intercept="0.03"/>
+            <feFuncG type="linear" slope="1.15" intercept="0.03"/>
+            <feFuncB type="linear" slope="1.25" intercept="0.05"/>
+          </feComponentTransfer>
+        </filter>
+
+        <!-- 2) Outer glow -->
+        <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="10" result="blur"/>
+          <feColorMatrix type="matrix" in="blur"
+            values="0 0 0 0 0.35
+                    0 0 0 0 0.65
+                    0 0 0 0 1.00
+                    0 0 0 0.75 0"
+            result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+
+        <!-- 3) Main glass gradient fill -->
+        <linearGradient id="glassGrad" x1="0%" y1="0%" x2="40%" y2="100%">
+          <stop offset="0%"   stop-color="rgba(255,255,255,0.97)"/>
+          <stop offset="20%"  stop-color="rgba(210,235,255,0.88)"/>
+          <stop offset="45%"  stop-color="rgba(255,255,255,0.78)"/>
+          <stop offset="70%"  stop-color="rgba(185,218,255,0.87)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0.95)"/>
+        </linearGradient>
+
+        <!-- 4) Rim-light / edge highlight gradient -->
+        <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   stop-color="rgba(255,255,255,0.90)"/>
+          <stop offset="50%"  stop-color="rgba(160,210,255,0.50)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0.85)"/>
+        </linearGradient>
+
+        <!-- 5) Moving shimmer sweep -->
+        <linearGradient id="shimmer" gradientUnits="userSpaceOnUse"
+                        x1="-400" y1="0" x2="-200" y2="320">
+          <stop offset="0%"   stop-color="rgba(255,255,255,0)"/>
+          <stop offset="45%"  stop-color="rgba(255,255,255,0)"/>
+          <stop offset="50%"  stop-color="rgba(255,255,255,0.65)"/>
+          <stop offset="55%"  stop-color="rgba(255,255,255,0)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+          <animateTransform attributeName="gradientTransform"
+            type="translate" from="-820 0" to="820 0"
+            dur="4s" repeatCount="indefinite" begin="1.8s"/>
+        </linearGradient>
+
+        <!-- 6) Clip path = text shape (used for the backdrop rect) -->
+        <clipPath id="textClip">
+          <text x="410" y="236"
+            text-anchor="middle"
+            font-family="'Dancing Script', cursive"
+            font-size="230px"
+            font-weight="700">Hello</text>
+        </clipPath>
+
+        <!-- 7) Inner shadow / depth -->
+        <filter id="innerDepth" x="-5%" y="-5%" width="110%" height="110%">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feOffset dx="2" dy="3" result="offset"/>
+          <feComposite in="SourceGraphic" in2="offset" operator="over"/>
+        </filter>
+
+      </defs>
+
+      <!-- ── Layer 0: subtle inner volume behind glass ── -->
+      <rect width="820" height="320"
+        clip-path="url(#textClip)"
+        fill="rgba(140,200,255,0.06)"/>
+
+      <!-- ── Layer 1: outer atmospheric glow ── -->
+      <text x="410" y="236" text-anchor="middle"
+        font-family="'Dancing Script', cursive"
+        font-size="230px" font-weight="700"
+        fill="rgba(70,140,255,0.22)"
+        filter="url(#glow)">Hello</text>
+
+      <!-- ── Layer 2: main liquid-glass body ── -->
+      <text x="410" y="236" text-anchor="middle"
+        font-family="'Dancing Script', cursive"
+        font-size="230px" font-weight="700"
+        fill="url(#glassGrad)"
+        filter="url(#liquidGlass)">Hello</text>
+
+      <!-- ── Layer 3: rim light (edge highlight, no displacement) ── -->
+      <text x="410" y="236" text-anchor="middle"
+        font-family="'Dancing Script', cursive"
+        font-size="230px" font-weight="700"
+        fill="none"
+        stroke="url(#rimGrad)"
+        stroke-width="1.2"
+        opacity="0.75">Hello</text>
+
+      <!-- ── Layer 4: shimmer sweep ── -->
+      <text x="410" y="236" text-anchor="middle"
+        font-family="'Dancing Script', cursive"
+        font-size="230px" font-weight="700"
+        fill="url(#shimmer)">Hello</text>
+
+    </svg>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────
+   Animated background: dark scene with
+   slowly drifting colour blobs (like macOS)
+───────────────────────────────────────────── */
+const canvas = document.getElementById('bg');
+const ctx    = canvas.getContext('2d');
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const blobs = [
+  { ox: 0.18, oy: 0.32, r: 0.42, color: [10,  38, 130], sa: 0.00028, ca: 0.00022 },
+  { ox: 0.78, oy: 0.58, r: 0.36, color: [60,   0, 110], sa: 0.00035, ca: 0.00040 },
+  { ox: 0.50, oy: 0.80, r: 0.30, color: [ 0,  55,  90], sa: 0.00018, ca: 0.00025 },
+  { ox: 0.28, oy: 0.70, r: 0.28, color: [30,  15,  85], sa: 0.00050, ca: 0.00030 },
+  { ox: 0.65, oy: 0.20, r: 0.26, color: [ 5,  60,  80], sa: 0.00022, ca: 0.00048 },
+];
+
+let frame = 0;
+
+(function tick() {
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#00000f';
+  ctx.fillRect(0, 0, W, H);
+
+  blobs.forEach((b, i) => {
+    const x = (b.ox + Math.sin(frame * b.sa + i * 1.7) * 0.14) * W;
+    const y = (b.oy + Math.cos(frame * b.ca + i * 1.3) * 0.10) * H;
+    const r =  b.r * Math.min(W, H);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${b.color.join(',')},0.72)`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  });
+
+  frame++;
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
